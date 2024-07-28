@@ -1,0 +1,217 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id               String        @id @unique @default(uuid())
+  phoneNumber      String        @unique
+  firstName        String
+  password         String
+  address          String?
+  wishlist         String[]
+  ShoppingCart     ShoppingCart? @relation(fields: [shoppingCartId], references: [id])
+  shoppingCartId   Int?          @unique
+  Orders           Order[]
+  SentMessages     Message[]     @relation("sentMessages")
+  ReceivedMessages Message[]     @relation("receivedMessages")
+  Role             UserRole      @default(CUSTOMER)
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  @@index([phoneNumber])
+}
+
+model Message {
+  id         Int      @id @default(autoincrement())
+  text       String
+  Sender     User     @relation(name: "sentMessages", fields: [senderId], references: [id])
+  senderId   String
+  Receiver   User     @relation(name: "receivedMessages", fields: [receiverId], references: [id])
+  receiverId String
+  createdAt  DateTime @default(now())
+
+  @@index(fields: [senderId, receiverId])
+}
+
+model Advertisement {
+  id          Int       @id @unique @default(autoincrement())
+  description String
+  incomeValue Int
+  posterImage String
+  startDate   DateTime?
+  endDate     DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Visitor {
+  id        Int      @id @unique @default(autoincrement())
+  type      Boolean
+  createdAt DateTime @default(now())
+}
+
+model Product {
+  id               String             @id @unique @default(uuid())
+  barcode          String             @unique
+  nameTm           String
+  nameRu           String
+  unitPrice        Decimal
+  sellPrice        Decimal
+  stock            Decimal
+  images           String[]
+  descriptionTm    String?
+  descriptionRu    String?
+  Manufacturer     Manufacturer?      @relation(fields: [manufacturerId], references: [id])
+  manufacturerId   String?
+  Category         Category?          @relation(fields: [categoryId], references: [id])
+  categoryId       String?
+  SubCategory      SubCategory?       @relation(fields: [subCategoryId], references: [id])
+  subCategoryId    String?
+  Unit             Unit?              @relation(fields: [unitId], references: [id])
+  unitId           Int?
+  Status           Status?            @relation(fields: [statusId], references: [id])
+  statusId         Int?
+  ShoppingCartItem ShoppingCartItem[]
+  OrderItem        OrderItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index(fields: [barcode, manufacturerId, categoryId, subCategoryId])
+}
+
+model Manufacturer {
+  id        String    @id @unique @default(uuid())
+  name      String
+  logo      String?
+  Products  Product[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model Category {
+  id            String        @id @unique @default(uuid())
+  nameTm        String
+  nameRu        String
+  Products      Product[]
+  SubCategories SubCategory[]
+}
+
+model SubCategory {
+  id         String    @id @unique @default(uuid())
+  nameTm     String
+  nameRu     String
+  Category   Category  @relation(fields: [categoryId], references: [id])
+  categoryId String
+  Products   Product[]
+}
+
+model Unit {
+  id       Int       @id @default(autoincrement())
+  nameTm   String
+  nameRu   String
+  Products Product[]
+}
+
+model Status {
+  id       Int       @id @default(autoincrement())
+  nameTm   String
+  nameRu   String
+  Products Product[]
+}
+
+model ShoppingCart {
+  id           Int                @id @default(autoincrement())
+  Customer     User?
+  ProductsList ShoppingCartItem[]
+}
+
+model ShoppingCartItem {
+  id             Int           @id @default(autoincrement())
+  ShoppingCart   ShoppingCart? @relation(fields: [shoppingCartId], references: [id])
+  shoppingCartId Int?
+  Product        Product       @relation(fields: [barcode], references: [barcode])
+  barcode        String
+  quantity       Decimal       @default(1)
+
+  @@index([shoppingCartId, barcode])
+}
+
+model Order {
+  id             Int           @id @unique @default(autoincrement())
+  Customer       User          @relation(fields: [customerId], references: [id])
+  customerId     String
+  phoneNumber    String
+  address        String
+  comment        String?
+  sum            Decimal
+  OrderItems     OrderItem[]
+  PaymentType    PaymentType?  @relation(fields: [paymentTypeId], references: [id])
+  paymentTypeId  Int?
+  DeliveryType   DeliveryType? @relation(fields: [deliveryTypeId], references: [id])
+  deliveryTypeId Int?
+  OrderStatus    OrderStatus?  @relation(fields: [orderStatusId], references: [id])
+  orderStatusId  Int?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+}
+
+model OrderItem {
+  id       Int     @id @default(autoincrement())
+  Order    Order?  @relation(fields: [orderId], references: [id])
+  orderId  Int?
+  Product  Product @relation(fields: [barcode], references: [barcode])
+  barcode  String
+  quantity Decimal @default(1)
+
+  @@index([orderId, barcode])
+}
+
+model PaymentType {
+  id     Int     @id @unique @default(autoincrement())
+  nameTm String
+  nameRu String
+  Order  Order[]
+}
+
+model DeliveryType {
+  id     Int     @id @unique @default(autoincrement())
+  nameTm String
+  nameRu String
+  price  Int
+  Order  Order[]
+}
+
+model OrderStatus {
+  id     Int     @id @unique @default(autoincrement())
+  nameTm String
+  nameRu String
+  Order  Order[]
+}
+
+model Notification {
+  id         Int              @id @unique @default(autoincrement())
+  type       NotificationType
+  text       String
+  imageUrl   String?
+  productUrl String?
+  createdAt  DateTime         @default(now())
+}
+
+enum NotificationType {
+  AD
+  PRODUCT_AD
+  ORDERS_OFF
+}
+
+enum UserRole {
+  ADMIN
+  MANAGER
+  CUSTOMER
+}
