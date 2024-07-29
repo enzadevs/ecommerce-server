@@ -99,6 +99,7 @@ model Category {
   id            String        @id @unique @default(uuid())
   nameTm        String
   nameRu        String
+  image         String
   Products      Product[]
   SubCategories SubCategory[]
 }
@@ -107,6 +108,7 @@ model SubCategory {
   id         String    @id @unique @default(uuid())
   nameTm     String
   nameRu     String
+  image      String
   Category   Category  @relation(fields: [categoryId], references: [id])
   categoryId String
   Products   Product[]

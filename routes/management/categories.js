@@ -1,8 +1,20 @@
 import express from "express";
+import { extname } from "path";
 import { prisma } from "../../exportprisma.js";
 import { asyncHandler } from "../../utils.js";
+import { multerStorage } from "../../utils.js";
 
 const router = express.Router();
+const storage = multerStorage.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, "uploads/categories/");
+  },
+  filename: (req, file, cb) => {
+    const fileExtension = extname(file.originalname);
+    cb(null, `${Date.now()}${fileExtension}`);
+  },
+});
+const upload = multerStorage({ storage: storage });
 
 const fetchCategories = asyncHandler(async (req, res) => {
   try {
@@ -87,6 +99,8 @@ const fetchById = asyncHandler(async (req, res) => {
 const newCategory = asyncHandler(async (req, res) => {
   const { nameTm, nameRu } = req.body;
 
+  const image = req.file?.path?.replace(/\\/g, "/");
+
   try {
     if (
       !nameTm ||
@@ -100,7 +114,7 @@ const newCategory = asyncHandler(async (req, res) => {
     }
 
     await prisma.category.create({
-      data: { nameTm, nameRu },
+      data: { nameTm, nameRu, image: image || "" },
     });
 
     res.status(201).json({ message: "Категория создана." });
@@ -112,6 +126,8 @@ const newCategory = asyncHandler(async (req, res) => {
 const updateCategory = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { nameTm, nameRu } = req.body;
+
+  const image = req.file?.path?.replace(/\\/g, "/");
 
   try {
     if (
@@ -125,9 +141,19 @@ const updateCategory = asyncHandler(async (req, res) => {
       });
     }
 
+    const existingCategory = await prisma.category.findUnique({
+      where: { id },
+    });
+
+    const updatedCategoryData = {
+      nameTm: nameTm || existingCategory.nameTm,
+      nameRu: nameRu || existingCategory.nameRu,
+      image: image || existingCategory.image,
+    };
+
     await prisma.category.update({
       where: { id },
-      data: { nameTm, nameRu },
+      data: updatedCategoryData,
     });
     res.status(201).json({ message: "Категория обновлена." });
   } catch (err) {
@@ -158,8 +184,8 @@ const deleteCategory = asyncHandler(async (req, res) => {
 router.get("/fetch/all", fetchCategories);
 router.post("/fetch/withproducts", fetchProductsFromCategories);
 router.get("/fetch/single/:id", fetchById);
-router.post("/new/", newCategory);
-router.patch("/update/:id", updateCategory);
+router.post("/new/", upload.single("image"), newCategory);
+router.patch("/update/:id", upload.single("image"), updateCategory);
 router.delete("/delete/:id", deleteCategory);
 
 export default router;

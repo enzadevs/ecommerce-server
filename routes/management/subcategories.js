@@ -1,8 +1,20 @@
 import express from "express";
+import { extname } from "path";
 import { prisma } from "../../exportprisma.js";
 import { asyncHandler } from "../../utils.js";
+import { multerStorage } from "../../utils.js";
 
 const router = express.Router();
+const storage = multerStorage.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, "uploads/subcategories/");
+  },
+  filename: (req, file, cb) => {
+    const fileExtension = extname(file.originalname);
+    cb(null, `${Date.now()}${fileExtension}`);
+  },
+});
+const upload = multerStorage({ storage: storage });
 
 const fetchSubCategories = asyncHandler(async (req, res) => {
   try {
@@ -81,6 +93,8 @@ const fetchById = asyncHandler(async (req, res) => {
 const newSubCategory = asyncHandler(async (req, res) => {
   const { nameTm, nameRu, categoryId } = req.body;
 
+  const image = req.file?.path?.replace(/\\/g, "/");
+
   try {
     if (
       !nameTm ||
@@ -97,6 +111,7 @@ const newSubCategory = asyncHandler(async (req, res) => {
       data: {
         nameTm,
         nameRu,
+        image: image || "",
         Category: {
           connect: {
             id: categoryId,
@@ -115,6 +130,8 @@ const updateSubCategory = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { nameTm, nameRu } = req.body;
 
+  const image = req.file?.path?.replace(/\\/g, "/");
+
   try {
     if (
       !nameTm ||
@@ -127,9 +144,19 @@ const updateSubCategory = asyncHandler(async (req, res) => {
       });
     }
 
+    const existingSubCategory = await prisma.subCategory.findUnique({
+      where: { id },
+    });
+
+    const updatedSubCategoryData = {
+      nameTm: nameTm || existingSubCategory.nameTm,
+      nameRu: nameRu || existingSubCategory.nameRu,
+      image: image || existingSubCategory.image,
+    };
+
     await prisma.subCategory.update({
       where: { id },
-      data: { nameTm, nameRu },
+      data: updatedSubCategoryData,
     });
     res.status(201).json({ message: "Подкатегория обновлена." });
   } catch (err) {
@@ -160,8 +187,8 @@ const deleteSubCategory = asyncHandler(async (req, res) => {
 router.get("/fetch/all", fetchSubCategories);
 router.post("/fetch/withproducts", fetchProductsFromSubCategories);
 router.get("/fetch/single/:id", fetchById);
-router.post("/new/", newSubCategory);
-router.patch("/update/:id", updateSubCategory);
+router.post("/new/", upload.single("image"), newSubCategory);
+router.patch("/update/:id", upload.single("image"), updateSubCategory);
 router.delete("/delete/:id", deleteSubCategory);
 
 export default router;
