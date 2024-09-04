@@ -125,8 +125,101 @@ const updateStock = asyncHandler(async (req, res) => {
   }
 });
 
+const currentToken =
+  "mxtmIEpgVe0BxOFAwcyvMXjoqpRVLdrUjcKli6HjjJEqi08dsMEqDILRaWI5auyB";
+
+const syncProducts = asyncHandler(async (req, res) => {
+  const { token, products } = req.body;
+  const BATCH_SIZE = 1000;
+
+  try {
+    if (token !== currentToken) {
+      return res.status(200).send({ message: `Вы не авторизированы.` });
+    }
+
+    const productBarcodes = products.map((product) => product.barcode);
+    const existingProducts = await prisma.product.findMany({
+      where: {
+        barcode: { in: productBarcodes },
+      },
+    });
+
+    const existingBarcodes = new Set(
+      existingProducts.map((product) => product.barcode)
+    );
+    const productsToCreate = [];
+    const productsToUpdate = [];
+    const productsToDelete = [];
+
+    for (const product of products) {
+      if (existingBarcodes.has(product.barcode)) {
+        productsToUpdate.push(product);
+      } else {
+        productsToCreate.push(product);
+      }
+    }
+
+    const barcodesToKeep = new Set(products.map((product) => product.barcode));
+    for (const existingProduct of existingProducts) {
+      if (!barcodesToKeep.has(existingProduct.barcode)) {
+        productsToDelete.push(existingProduct.id);
+      }
+    }
+
+    for (let i = 0; i < productsToCreate.length; i += BATCH_SIZE) {
+      const batch = productsToCreate.slice(i, i + BATCH_SIZE);
+      const mappedProducts = batch.map((product) => ({
+        id: String(product.id),
+        barcode: product.barcode,
+        nameTm: product.name,
+        nameRu: " ",
+        unitPrice: product.unitPrice,
+        sellPrice: product.sellingPrice,
+        stock: product.quantity,
+        unitId: product.unitId,
+      }));
+      await prisma.product.createMany({
+        data: mappedProducts,
+        skipDuplicates: true,
+      });
+    }
+
+    for (let i = 0; i < productsToUpdate.length; i += BATCH_SIZE) {
+      const batch = productsToUpdate.slice(i, i + BATCH_SIZE);
+      const updatePromises = batch.map((product) => {
+        return prisma.product.update({
+          where: { barcode: product.barcode },
+          data: {
+            nameTm: product.name,
+            stock: product.quantity,
+            unitId: product.unitId,
+          },
+        });
+      });
+      await Promise.all(updatePromises);
+    }
+
+    for (let i = 0; i < productsToDelete.length; i += BATCH_SIZE) {
+      const batch = productsToDelete.slice(i, i + BATCH_SIZE);
+      await prisma.product.deleteMany({
+        where: {
+          id: { in: batch },
+        },
+      });
+    }
+
+    res.status(200).send({
+      message: `Синхронизация завершена: ${productsToCreate.length} добавлено, ${productsToUpdate.length} обновлено, ${productsToDelete.length} удалено.`,
+    });
+  } catch (err) {
+    console.log(err);
+    res.status(500).send("Ошибка при синхронизации данных.");
+  }
+});
+
 router.post("/insert/", insertProducts);
 router.get("/export/", exportProducts);
 router.post("/updatestock/", updateStock);
+router.put("/products", syncProducts);
 
 export default router;
