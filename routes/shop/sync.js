@@ -129,12 +129,13 @@ const currentToken =
   "mxtmIEpgVe0BxOFAwcyvMXjoqpRVLdrUjcKli6HjjJEqi08dsMEqDILRaWI5auyB";
 
 const syncProducts = asyncHandler(async (req, res) => {
-  const { token, products } = req.body;
+  const { token } = req.headers;
+  const { products } = req.body;
   const BATCH_SIZE = 1000;
 
   try {
     if (token !== currentToken) {
-      return res.status(200).send({ message: `Вы не авторизированы.` });
+      return res.status(401).send({ message: `Вы не авторизированы.` });
     }
 
     const productBarcodes = products.map((product) => product.barcode);
@@ -169,7 +170,7 @@ const syncProducts = asyncHandler(async (req, res) => {
     for (let i = 0; i < productsToCreate.length; i += BATCH_SIZE) {
       const batch = productsToCreate.slice(i, i + BATCH_SIZE);
       const mappedProducts = batch.map((product) => ({
-        id: String(product.id),
+        id: product.id,
         barcode: product.barcode,
         nameTm: product.name,
         nameRu: " ",
